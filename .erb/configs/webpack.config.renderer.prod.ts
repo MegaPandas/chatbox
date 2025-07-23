@@ -1,31 +1,24 @@
 /**
  * Build config for electron renderer process
  */
-
-import path from 'path'
-import webpack from 'webpack'
+import { TanStackRouterWebpack } from '@tanstack/router-plugin/webpack'
+import CssMinimizerPlugin from 'css-minimizer-webpack-plugin'
 import HtmlWebpackPlugin from 'html-webpack-plugin'
 import MiniCssExtractPlugin from 'mini-css-extract-plugin'
-import { BundleAnalyzerPlugin } from 'webpack-bundle-analyzer'
-import CssMinimizerPlugin from 'css-minimizer-webpack-plugin'
-import { merge } from 'webpack-merge'
+import path from 'path'
 import TerserPlugin from 'terser-webpack-plugin'
+import webpack from 'webpack'
+import { BundleAnalyzerPlugin } from 'webpack-bundle-analyzer'
+import { merge } from 'webpack-merge'
+import JavaScriptObfuscator from 'webpack-obfuscator'
+import checkNodeEnv from '../scripts/check-node-env'
 import baseConfig from './webpack.config.base'
 import webpackPaths from './webpack.paths'
-import checkNodeEnv from '../scripts/check-node-env'
-import deleteSourceMaps from '../scripts/delete-source-maps'
-import JavaScriptObfuscator from 'webpack-obfuscator'
-import { TanStackRouterWebpack } from '@tanstack/router-plugin/webpack'
 
 checkNodeEnv('production')
 
-let enableSourceMap = false // 正式发布永远不能开启 sourceMap，否则代码会被轻易反编译。这个设置仅用于本地测试。
-if (!enableSourceMap) {
-  deleteSourceMaps()
-}
-
 const configuration: webpack.Configuration = {
-  devtool: enableSourceMap ? 'source-map' : false,
+  devtool: false,
 
   mode: 'production',
 
@@ -158,25 +151,7 @@ const configuration: webpack.Configuration = {
 
     new webpack.DefinePlugin({
       'process.type': '"renderer"',
-    }),
-    new JavaScriptObfuscator({
-      optionsPreset: 'default',
-      // 太卡了
-      // controlFlowFlattening: true,
-      // controlFlowFlatteningThreshold: 0.1,
-
-      // 默认的变量名混淆，可能被误报为恶意代码
-      identifierNamesGenerator: 'mangled-shuffled',
-      // 这些静态字符串混淆后，很可能被误报为恶意代码
-      exclude: ['initial_data.ts', 'initial_data.js'],
-
-      numbersToExpressions: true,
-      // 保护前端代码不被偷到其他地方部署
-      // 迁移过程中，暂时关闭保护
-      // domainLock: ['localhost', ".chatboxai.app", ".chatboxai.com", ".chatboxapp.xyz", "chatbox-pro.pages.dev"],
-      // domainLockRedirectUrl: 'https://chatboxai.app',
-      sourceMap: enableSourceMap,
-    }),
+    }),   
   ],
 }
 

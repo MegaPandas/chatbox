@@ -2,9 +2,9 @@ import NiceModal from '@ebay/nice-modal-react'
 import { Box, Grid } from '@mui/material'
 import CssBaseline from '@mui/material/CssBaseline'
 import { ThemeProvider } from '@mui/material/styles'
-import { createRootRoute, Outlet, useNavigate } from '@tanstack/react-router'
+import { createRootRoute, Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { type RemoteConfig, type Settings, Theme } from '@/../shared/types'
 import ExitFullscreenButton from '@/components/ExitFullscreenButton'
 import Toasts from '@/components/Toasts'
@@ -47,19 +47,23 @@ import {
   virtualColor,
 } from '@mantine/core'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { ErrorBoundary } from '@/components/ErrorBoundary'
 import storage, { StorageKey } from '@/storage'
 import queryClient from '@/stores/queryClient'
 
 function Root() {
+  const location = useLocation()
   const navigate = useNavigate()
   const spellCheck = useAtomValue(atoms.spellCheckAtom)
   const language = useAtomValue(atoms.languageAtom)
+  const initialized = useRef(false)
 
   const setOpenAboutDialog = useSetAtom(atoms.openAboutDialogAtom)
-
   const setRemoteConfig = useSetAtom(atoms.remoteConfigAtom)
+
   useEffect(() => {
+    if (initialized.current) {
+      return
+    }
     // 通过定时器延迟启动，防止处理状态底层存储的异步加载前错误的初始数据
     const tid = setTimeout(() => {
       ;(async () => {
@@ -68,7 +72,8 @@ function Root() {
           .catch(() => ({ setting_chatboxai_first: false }) as RemoteConfig)
         setRemoteConfig((conf) => ({ ...conf, ...remoteConfig }))
         // 是否需要弹出设置窗口
-        if (settingActions.needEditSetting()) {
+        initialized.current = true
+        if (settingActions.needEditSetting() && location.pathname !== '/settings/mcp') {
           const res = await NiceModal.show('welcome')
           if (res) {
             if (res === 'custom') {
@@ -78,7 +83,7 @@ function Root() {
                 navigate({
                   to: '/settings/provider/chatbox-ai',
                   search: {
-                    custom: 'true',
+                    custom: true,
                   },
                 })
               } else {
@@ -109,7 +114,7 @@ function Root() {
     }, 2000)
 
     return () => clearTimeout(tid)
-  }, [navigate, setOpenAboutDialog, setRemoteConfig])
+  }, [navigate, setOpenAboutDialog, setRemoteConfig, location.pathname])
 
   const [showSidebar] = useAtom(atoms.showSidebarAtom)
   const sidebarWidth = useSidebarWidth()
@@ -141,6 +146,15 @@ function Root() {
         })
       }
     })()
+  }, [navigate])
+
+  useEffect(() => {
+    if (platform.onNavigate) {
+      // 移动端和其他平台的导航监听器
+      return platform.onNavigate((path) => {
+        navigate({ to: path })
+      })
+    }
   }, [navigate])
 
   return (
@@ -335,6 +349,18 @@ const creteMantineTheme = (scale = 1) =>
         'var(--mantine-color-gray-2)',
         'var(--mantine-color-gray-2)',
       ],
+      'chatbox-background-error-secondary': [
+        'var(--mantine-color-red-9)',
+        'var(--mantine-color-red-9)',
+        'var(--mantine-color-red-9)',
+        'var(--mantine-color-red-9)',
+        'var(--mantine-color-red-9)',
+        'var(--mantine-color-red-1)',
+        'var(--mantine-color-red-1)',
+        'var(--mantine-color-red-1)',
+        'var(--mantine-color-red-1)',
+        'var(--mantine-color-red-1)',
+      ],
     },
     headings: {
       fontWeight: 'Bold',
@@ -424,7 +450,7 @@ const creteMantineTheme = (scale = 1) =>
         }),
       }),
       Input: Input.extend({
-        styles: (_theme, props) => ({
+        styles: (_, props) => ({
           wrapper: {
             '--input-height-sm': rem('32px'),
             ...(props.error
@@ -489,7 +515,7 @@ const creteMantineTheme = (scale = 1) =>
         defaultProps: {
           size: 'sm',
         },
-        styles: (_theme, props) => {
+        styles: (_, props) => {
           return {
             label: {
               color: props.checked
@@ -503,7 +529,7 @@ const creteMantineTheme = (scale = 1) =>
         defaultProps: {
           size: 'sm',
         },
-        styles: (_theme, props) => ({
+        styles: (_, props) => ({
           label: {
             color: props.checked
               ? 'var(--mantine-color-chatbox-primary-text)'
@@ -565,9 +591,7 @@ export const Route = createRootRoute({
           <ThemeProvider theme={theme}>
             <CssBaseline />
             <NiceModal.Provider>
-              <ErrorBoundary>
-                <Root />
-              </ErrorBoundary>
+              <Root />
             </NiceModal.Provider>
           </ThemeProvider>
         </MantineProvider>
@@ -587,6 +611,7 @@ type ExtendedCustomColors =
   | 'chatbox-tertiary'
   | 'chatbox-border-primary'
   | 'chatbox-border-secondary'
+  | 'chatbox-background-error-secondary'
   | DefaultMantineColor
 
 declare module '@mantine/core' {
